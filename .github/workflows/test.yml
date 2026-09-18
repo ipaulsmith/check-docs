@@ -1,0 +1,31 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install dash (Ubuntu only)
+        if: runner.os == 'Linux'
+        run: command -v dash || sudo apt-get install -y dash
+      - name: Temp-folder cases under sh, dash and bash
+        run: |
+          for sh in /bin/sh "$(command -v dash)" "$(command -v bash)"; do
+            echo "== $sh"
+            SH="$sh" python3 tests/run-cases.py check-docs.sh > out.txt || { cat out.txt; exit 1; }
+            tail -1 out.txt
+          done
+      - name: Real git cases under sh, dash and bash
+        run: |
+          for sh in /bin/sh "$(command -v dash)" "$(command -v bash)"; do
+            echo "== $sh"
+            sh tests/git-cases.sh "$PWD/check-docs.sh" "$sh"
+          done
