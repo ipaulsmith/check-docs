@@ -96,7 +96,7 @@ imports() {
       if (match(q, /^ ? ? ?(`+|~+)[ \t]*$/)) { r = substr(q, RSTART, RLENGTH); gsub(/[ \t]/, "", r)
         if (substr(r, 1, 1) == fc && length(r) >= fl) fc = "" }
       next }
-    if (match(q, /^ ? ? ?(```+|~~~+)/)) { r = substr(q, RSTART, RLENGTH); gsub(/ /, "", r)
+    if (match(q, /^ ? ? ?(``+`|~~~+)/)) { r = substr(q, RSTART, RLENGTH); gsub(/ /, "", r)
       if (!(substr(r, 1, 1) == "`" && index(substr(q, RSTART + RLENGTH), "`"))) {
         fc = substr(r, 1, 1); fl = length(r); ic = 0; next } }
     if (q ~ /^[ \t]*$/) { blank = 1; next }
