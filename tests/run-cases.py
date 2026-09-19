@@ -89,6 +89,52 @@ case("symlinked-CLAUDE.md", {"real.md": f"Run {B}scripts/e2e.sh{B}.\n", "__symli
 # run from a subdirectory
 case("run-from-subdir", {"CLAUDE.md": f"Run {B}scripts/e2e.sh{B}.\n", "docs/x.md": "", "__cwd__": "docs"}, 0, "no CLAUDE.md or AGENTS.md here", "wrong dir = nothing checked, says so")
 
+# issue #2: nested instruction files and @imports (outside git, so presence = on disk)
+case("nested-stale-path", {"CLAUDE.md": "ok\n", "sub/CLAUDE.md": f"Run {B}scripts/gone.sh{B}.\n"}, 1, "sub/CLAUDE.md: scripts/gone.sh not found")
+case("nested-path-relative-to-its-folder", {"sub/lib/x.sh": "", "sub/CLAUDE.md": f"Run {B}lib/x.sh{B}.\n"}, 0, "docs ok")
+case("nested-path-relative-to-root", {"scripts/e2e.sh": "", "sub/AGENTS.md": f"Run {B}scripts/e2e.sh{B}.\n"}, 0, "docs ok")
+case("dot-claude-CLAUDE.md-read", {".claude/CLAUDE.md": f"Run {B}scripts/gone.sh{B}.\n"}, 1, ".claude/CLAUDE.md: scripts/gone.sh not found")
+case("CLAUDE.local.md-read", {"CLAUDE.local.md": f"Run {B}scripts/gone.sh{B}.\n"}, 1, "scripts/gone.sh not found")
+case("import-valid", {"docs/guide.md": "ok\n", "CLAUDE.md": "See @docs/guide.md for more.\n"}, 0, "docs ok")
+case("import-missing", {"CLAUDE.md": "See @docs/gone.md for more.\n"}, 1, "CLAUDE.md: @docs/gone.md not found")
+case("import-trailing-period-is-part-of-path", {"README.md": "x\n", "CLAUDE.md": "See @README.md.\n"}, 1, "CLAUDE.md: @README.md. not found", "Claude Code does not strip punctuation")
+case("import-crlf", {"a.md": "x\n", "CLAUDE.md": "See @a.md\r\nok\r\n"}, 0, "docs ok")
+case("import-anchor-dropped", {"d.md": "x\n", "CLAUDE.md": "See @d.md#top\n"}, 0, "docs ok")
+case("import-escaped-space", {"e f.md": "x\n", "CLAUDE.md": "See @e\\ f.md\n"}, 0, "docs ok")
+case("import-first-char-rule", {"CLAUDE.md": "Set @$HOME/x and @(foo) and @**b** and @[x] and @@gone.md\n"}, 0, "docs ok")
+case("import-after-nbsp", {"CLAUDE.md": "See\u00a0@gone.md\n"}, 1, "CLAUDE.md: @gone.md not found")
+case("import-in-double-backtick-span-ignored", {"CLAUDE.md": "Use ``@gone.md`` here.\n"}, 0, "docs ok")
+case("import-in-4-backtick-fence-ignored", {"CLAUDE.md": "````md\n```\n@gone.md\n```\n````\n"}, 0, "docs ok")
+case("import-in-blockquote-fence-ignored", {"CLAUDE.md": "> ```\n> @gone.md\n> ```\n"}, 0, "docs ok")
+case("import-in-indented-code-ignored", {"CLAUDE.md": "Text.\n\n    @gone.md\n"}, 0, "docs ok")
+case("import-tilde-does-not-close-backtick-fence", {"CLAUDE.md": "```\n~~~\n@gone.md\n```\n"}, 0, "docs ok")
+case("import-info-string-does-not-close-fence", {"CLAUDE.md": "```sh\necho\n```sh\n@gone.md\n```\n"}, 0, "docs ok")
+case("import-in-list-continuation-checked", {"CLAUDE.md": "- step one\n\n    see @gone.md\n"}, 1, "CLAUDE.md: @gone.md not found")
+case("import-in-nested-list-item-checked", {"CLAUDE.md": "- top\n\n    - sub see @gone.md\n"}, 1, "CLAUDE.md: @gone.md not found")
+case("import-in-tab-indented-list-item-checked", {"CLAUDE.md": "- top\n\n\t- sub @gone.md\n"}, 1, "CLAUDE.md: @gone.md not found")
+case("import-in-ordered-list-continuation-checked", {"CLAUDE.md": "1. step\n\n    Then import @gone.md\n"}, 1, "CLAUDE.md: @gone.md not found")
+case("import-indented-after-heading-is-code", {"CLAUDE.md": "# T\n    @gone.md\n"}, 0, "docs ok")
+case("import-indented-after-list-ended-is-code", {"CLAUDE.md": "- item\n\nParagraph.\n\n    @gone.md\n"}, 0, "docs ok")
+case("import-after-tab", {"CLAUDE.md": "See\t@gone.md\n"}, 1, "CLAUDE.md: @gone.md not found")
+case("import-after-closed-fence-checked", {"CLAUDE.md": "```\ncode\n```\nSee @gone.md\n"}, 1, "CLAUDE.md: @gone.md not found")
+case("import-stale-path-inside", {"docs/guide.md": f"Run {B}scripts/gone.sh{B}.\n", "CLAUDE.md": "@docs/guide.md\n"}, 1, "docs/guide.md: scripts/gone.sh not found")
+case("import-relative-from-nested", {"sub/notes.md": "ok\n", "sub/CLAUDE.md": "See @notes.md\n"}, 0, "docs ok")
+case("import-relative-from-nested-not-root", {"notes.md": "ok\n", "sub/CLAUDE.md": "See @notes.md\n"}, 1, "sub/CLAUDE.md: @notes.md not found")
+case("import-relative-dotdot", {"shared.md": "ok\n", "sub/CLAUDE.md": "See @../shared.md\n"}, 0, "docs ok")
+case("import-chain-4-hops-checked", {"CLAUDE.md": "@a.md\n", "a.md": "@b.md\n", "b.md": "@c.md\n", "c.md": "@d.md\n", "d.md": f"Run {B}scripts/gone.sh{B}.\n"}, 1, "scripts/gone.sh not found", "d.md is hop 4, still loaded")
+case("import-chain-5th-hop-not-followed", {"CLAUDE.md": "@a.md\n", "a.md": "@b.md\n", "b.md": "@c.md\n", "c.md": "@d.md\n", "d.md": "@gone.md\n"}, 0, "docs ok", "hop 5 is not loaded by Claude Code")
+case("import-cycle", {"CLAUDE.md": "@a.md\n", "a.md": "@b.md\n", "b.md": "@a.md and @CLAUDE.md\n"}, 0, "docs ok")
+case("import-same-file-twice-reported-once", {"CLAUDE.md": "@x.md\n", "AGENTS.md": "@x.md\n", "x.md": f"Run {B}sub/gone.sh{B}.\n"}, 1, "sub/gone.sh not found")
+case("import-in-code-span-ignored", {"CLAUDE.md": f"Write {B}@gone.md{B} to import.\n"}, 0, "docs ok", "a backticked word WITH a slash still goes through the path check")
+case("import-in-fence-ignored", {"CLAUDE.md": "```\n@docs/gone.md\n```\n"}, 0, "docs ok")
+case("import-email-not-import", {"CLAUDE.md": "Mail dev@example.com.\n"}, 0, "docs ok")
+case("import-home-and-absolute-skipped", {"CLAUDE.md": "@~/.claude/mine.md and @/etc/gone.md\n"}, 0, "docs ok")
+case("import-directory-is-not-a-file", {"docs/x.md": "", "CLAUDE.md": "@docs\n"}, 1, "CLAUDE.md: @docs not found")
+case("deleted-name-in-nested-file", {"CLAUDE.md": "ok\n", "sub/CLAUDE.md": "Use OldPanel.\n", "deleted-names.txt": "OldPanel\n"}, 1, "sub/CLAUDE.md:1:Use OldPanel.")
+case("deleted-name-in-imported-file", {"CLAUDE.md": "@x.md\n", "x.md": "Use OldPanel.\n", "deleted-names.txt": "OldPanel\n"}, 1, "x.md:1:Use OldPanel.")
+case("unrelated-markdown-not-scanned", {"CLAUDE.md": "ok\n", "docs/other.md": f"Run {B}scripts/gone.sh{B}.\n"}, 0, "docs ok")
+case("node_modules-instructions-skipped", {"CLAUDE.md": "ok\n", "node_modules/pkg/CLAUDE.md": f"Run {B}scripts/gone.sh{B}.\n"}, 0, "docs ok")
+
 def build(root, files):
     for rel, content in files.items():
         if rel.startswith("__"):
@@ -106,7 +152,7 @@ def build(root, files):
 def stub_bin(root, drop=None, grep2=False):
     """A PATH dir with the real tools linked in, minus `drop`, or with a grep that always errors."""
     b = os.path.join(root, "stubbin"); os.makedirs(b)
-    for tool in ["grep", "sed", "tr", "sort", "cat", "printf", "echo", "ls"]:
+    for tool in ["grep", "sed", "tr", "sort", "awk", "find", "cat", "printf", "echo", "ls"]:
         if tool == drop:
             continue
         real = None

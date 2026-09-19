@@ -40,7 +40,7 @@ check() {
   fi
 }
 
-STAGE="stage CLAUDE.md, AGENTS.md and deleted-names.txt first"
+STAGE="stage your instruction file edits first:"
 MISSING="scripts/missing.sh not found"
 
 new; printf 'Run `scripts/missing.sh`.\n' > CLAUDE.md; git add -A; printf 'Run `scripts/e2e.sh`.\n' > CLAUDE.md
@@ -90,6 +90,28 @@ check "bracket path, no glob expansion"    0 yes "docs ok" git commit -qm x
 new; printf 'Run `scripts/missing.sh`.\n' > CLAUDE.md; mkdir sub; : > sub/f; git add -A; cd sub || exit 2
 check "commit from a subfolder, stale"     1 no "$MISSING" git commit -qm x
 cd ..
+
+# issue #2: nested files and @imports inside git
+new; mkdir sub; printf 'Run `scripts/gone.sh`.\n' > sub/CLAUDE.md; : > CLAUDE.md; git add -A
+check "nested CLAUDE.md, stale path"       1 no "sub/CLAUDE.md: scripts/gone.sh not found" git commit -qm x
+
+new; mkdir docs; : > docs/guide.md; printf 'See @docs/guide.md\n' > CLAUDE.md; git add CLAUDE.md
+check "import of a never-added file"       1 no "CLAUDE.md: @docs/guide.md not found" git commit -qm x
+
+new; mkdir docs; : > docs/guide.md; printf 'See @docs/guide.md\n' > CLAUDE.md; git add -A
+check "import of a tracked file"           0 yes "docs ok" git commit -qm x
+
+new; mkdir docs; : > docs/guide.md; printf 'See @docs/guide.md\n' > CLAUDE.md; git add -A; printf 'Run `scripts/gone.sh`.\n' > docs/guide.md
+check "unstaged edit in imported file"     2 no "$STAGE" git commit -qm x
+
+new; printf 'Run `scripts/e2e.sh`.\n' > CLAUDE.md; git add -A; git commit -qm base >/dev/null 2>&1; rm CLAUDE.md
+check "CLAUDE.md deleted on disk, not staged" 2 no "$STAGE" git commit -qm x
+
+new; mkdir docs; : > docs/guide.md; printf 'See @docs/guide.md\n' > CLAUDE.md; git add -A; git commit -qm base >/dev/null 2>&1; rm docs/guide.md; : > other; git add other
+check "imported file deleted, not staged"  2 no "$STAGE" git commit -qm x
+
+new; mkdir docs; : > docs/o.txt; printf 'See @docs\n' > CLAUDE.md; git add -A; git commit -qm base >/dev/null 2>&1; echo edit > docs/o.txt; git add CLAUDE.md
+check "import of a folder ignores its files" 1 no "CLAUDE.md: @docs not found" git commit -qm x
 
 # outside git: run the script by hand
 D="$ROOT/plain"; mkdir "$D"; cd "$D" || exit 2; cp "$S" check-docs.sh
