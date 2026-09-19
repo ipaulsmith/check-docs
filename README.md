@@ -62,17 +62,17 @@ set --
 [ -f AGENTS.md ] && set -- "$@" AGENTS.md
 [ $# -gt 0 ] || { echo "no CLAUDE.md or AGENTS.md here"; exit 0; }
 # in a git repo, require instruction-file edits to be staged before checking
-if git rev-parse --git-dir >/dev/null 2>&1; then
+if G=$(git rev-parse --git-dir 2>/dev/null); then
   git diff --quiet -- "$@" deleted-names.txt ||
     { echo "stage CLAUDE.md, AGENTS.md and deleted-names.txt first"; exit 2; }
 fi
 
-# 1. every backticked word with a slash must exist as a path
+# 1. every backticked word with a slash must exist as a path (in git: in the index)
 spans=$(grep -ohE '`[^`]+`' "$@")
 [ $? -le 1 ] || exit 2   # grep: 0 found, 1 found nothing, 2 error
 paths=$(printf '%s\n' "$spans" | tr -d '`' | tr ' \t' '\n\n' |
   grep '/' | grep -v -e '://' -e '[*:#<>$]' -e '^[~-]' | sort -u)
-missing=$(for p in $paths; do [ -e "$p" ] || printf '%s not found\n' "$p"; done)
+missing=$(for p in $paths; do if [ -n "$G" ]; then git --literal-pathspecs ls-files --error-unmatch -- "$p"; else [ -e "$p" ]; fi >/dev/null 2>&1 || printf '%s not found\n' "$p"; done)
 [ -z "$missing" ] || { printf '%s\n' "$missing"; exit 1; }
 
 # 2. no name from deleted-names.txt (optional, one per line) may appear
@@ -130,7 +130,7 @@ docs ok
 
 It reads CLAUDE.md and AGENTS.md, whichever of the two exist in the folder it runs from. As a git hook that is the repo root.
 
-- **Paths.** Every word with a slash that you wrote in backticks, like `src/OldPanel.tsx`, must exist as a file or folder.
+- **Paths.** Every word with a slash that you wrote in backticks, like `src/OldPanel.tsx`, must exist. In a git repo it must be in the index, so it is part of what you commit. Outside git it must exist on disk.
 - **Deleted names.** If you keep a `deleted-names.txt` with one name per line, none of those names may appear in the two files as a whole word.
 - **Unstaged edits.** In a git repo it first makes sure your latest edits to CLAUDE.md, AGENTS.md and `deleted-names.txt` are staged, so it checks the same version of these files that you commit.
 
@@ -142,8 +142,9 @@ It reads CLAUDE.md and AGENTS.md, whichever of the two exist in the folder it ru
 
 ## How it works
 
-- It needs `sh`, `grep`, `sed`, `tr` and `sort`. If one is missing it says so and exits 2. Git is optional: outside a git repo the staged-files check is skipped.
+- It needs `sh`, `grep`, `sed`, `tr` and `sort`. If one is missing it says so and exits 2. Git is optional: outside a git repo the staged-files check is skipped and paths are checked on disk.
 - Paths are taken from every backticked span, split on spaces. A word counts as a path when it has a slash. Words are skipped when they contain `://`, `*`, `:`, `#`, `<`, `>` or `$`, or start with `~` or `-`. That leaves out URLs, globs, `file:line` references, anchors and flags.
+- In a git repo a path counts as present when `git ls-files` finds it in the index, as a file or as a folder with tracked files. A file that exists on disk but was never added with `git add`, or was removed with `git rm --cached`, counts as missing. Pathspecs are literal, so `app/[slug]/page.tsx` is not a glob.
 - Each missing path is printed once as `<path> not found`. If any path is missing, the deleted-names check does not run on that commit.
 - `deleted-names.txt` is optional. Leading and trailing spaces are trimmed, blank lines are ignored, and matching is whole-word and case-sensitive. Each hit is printed with its line number, then `Deleted name found`. When both CLAUDE.md and AGENTS.md exist, the file name is printed too. If `deleted-names.txt` exists but is not a regular file, the check exits 2.
 - The staged-files check uses `git diff --quiet`. Any unstaged change to the three files stops the commit with `stage CLAUDE.md, AGENTS.md and deleted-names.txt first`, so you cannot commit one version of these files while the check looked at another.
@@ -153,8 +154,7 @@ It reads CLAUDE.md and AGENTS.md, whichever of the two exist in the folder it ru
 
 - It is a text match, not a Markdown parser. It only checks backticked words that contain a slash.
 - Any backticked word with a slash counts as a path. `origin/main`, branch names like `feature/foo`, API routes like `/api/users`, scoped packages like `@tanstack/react-query` and `owner/repo` names all show up as missing. Drop the backticks around them, or skip the check once with `git commit --no-verify`.
-- Not checked: Markdown links like `[setup](docs/setup.md)`, `@path` imports, file names without a slash like `Makefile`, and instruction files other than the root CLAUDE.md and AGENTS.md, such as `.claude/CLAUDE.md`, `CLAUDE.local.md`, nested CLAUDE.md files or `.cursor/rules`.
-- Paths are checked against the files on disk, not against what is staged. A file you removed from the index but kept on disk still counts as present.
+- Not checked: Markdown links like `[setup](docs/setup.md)`, `@path` imports, file names without a slash like `Makefile`, and instruction files other than the root CLAUDE.md and AGENTS.md, such as `.claude/CLAUDE.md`, `CLAUDE.local.md`, nested CLAUDE.md or AGENTS.md files, or `.cursor/rules`.
 - Paths with spaces are not supported.
 - It runs on the folder it starts in. Run from a subfolder by hand and it reports that there is nothing to check.
 - A stray single backtick shifts the pairing, so a path after it can be missed.
@@ -171,7 +171,7 @@ sh tests/git-cases.sh "$PWD/check-docs.sh"
 Both exit non-zero if any case fails. CI runs them on macOS and Ubuntu under `sh`, `dash` and `bash` on every push.
 
 - `run-cases.py` builds 62 cases in temp folders, including unreadable files, missing tools, CRLF line endings and non-ASCII paths, and checks exit codes and output. Set `SH=/bin/dash` or `SH=/bin/bash` to use another shell. Run it as a normal user, not root.
-- `git-cases.sh` runs 12 scenarios in real git repos with the script installed as a pre-commit hook, including `git commit -a` and a commit from a subfolder. For each one it checks the script's exit code, its output and whether the commit was made. Pass a shell as the second argument to use another one.
+- `git-cases.sh` runs 17 scenarios in real git repos with the script installed as a pre-commit hook, including `git commit -a` and a commit from a subfolder. For each one it checks the script's exit code, its output and whether the commit was made. Pass a shell as the second argument to use another one.
 
 ## License
 

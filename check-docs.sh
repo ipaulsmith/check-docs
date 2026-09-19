@@ -13,17 +13,17 @@ set --
 [ -f AGENTS.md ] && set -- "$@" AGENTS.md
 [ $# -gt 0 ] || { echo "no CLAUDE.md or AGENTS.md here"; exit 0; }
 # in a git repo, require instruction-file edits to be staged before checking
-if git rev-parse --git-dir >/dev/null 2>&1; then
+if G=$(git rev-parse --git-dir 2>/dev/null); then
   git diff --quiet -- "$@" deleted-names.txt ||
     { echo "stage CLAUDE.md, AGENTS.md and deleted-names.txt first"; exit 2; }
 fi
 
-# 1. every backticked word with a slash must exist as a path
+# 1. every backticked word with a slash must exist as a path (in git: in the index)
 spans=$(grep -ohE '`[^`]+`' "$@")
 [ $? -le 1 ] || exit 2   # grep: 0 found, 1 found nothing, 2 error
 paths=$(printf '%s\n' "$spans" | tr -d '`' | tr ' \t' '\n\n' |
   grep '/' | grep -v -e '://' -e '[*:#<>$]' -e '^[~-]' | sort -u)
-missing=$(for p in $paths; do [ -e "$p" ] || printf '%s not found\n' "$p"; done)
+missing=$(for p in $paths; do if [ -n "$G" ]; then git --literal-pathspecs ls-files --error-unmatch -- "$p"; else [ -e "$p" ]; fi >/dev/null 2>&1 || printf '%s not found\n' "$p"; done)
 [ -z "$missing" ] || { printf '%s\n' "$missing"; exit 1; }
 
 # 2. no name from deleted-names.txt (optional, one per line) may appear
