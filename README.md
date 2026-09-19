@@ -158,7 +158,8 @@ It reads CLAUDE.md and AGENTS.md, whichever of the two exist in the folder it ru
 - Paths with spaces are not supported.
 - It runs on the folder it starts in. Run from a subfolder by hand and it reports that there is nothing to check.
 - A stray single backtick shifts the pairing, so a path after it can be missed. Punctuation glued to a path inside the backticks, like `` `src/a.ts,` ``, becomes part of the path and shows up as missing.
-- On macOS folders ignore letter case, so `src/oldpanel.tsx` passes when the file is `OldPanel.tsx`.
+- In a git repo only paths in the index count. Ignored or untracked files such as build output (`dist/`, `.venv/bin/python`), absolute paths like `/usr/bin/env`, paths outside the repo like `../other/`, paths inside a submodule and paths through a symlinked folder all show up as missing. Drop the backticks around them, or skip the check once with `git commit --no-verify`.
+- Outside git on macOS, folders ignore letter case, so `src/oldpanel.tsx` passes when the file is `OldPanel.tsx`. In a git repo the index check is case-sensitive.
 - Tested on macOS and Ubuntu on every push, under `dash`, `bash` and each system's own `/bin/sh`. It uses `grep -o`, `-h` and `-w`, which are not in POSIX but are in GNU and BSD grep. Windows is not supported. Git Bash and WSL have not been tested.
 
 ## Tests
