@@ -69,8 +69,23 @@ check "unstaged deleted-names.txt"         2 no "$STAGE"   git commit -qm x
 new; printf 'UI in OldPanel.\n' > CLAUDE.md; printf 'OldPanel\n' > deleted-names.txt; git add -A
 check "deleted name in CLAUDE.md"          1 no "Deleted name found" git commit -qm x
 
-new; printf 'Run `scripts/e2e.sh`.\n' > CLAUDE.md; : > a; git add a
-check "CLAUDE.md untracked, fine"          0 yes "docs ok" git commit -qm x
+new; printf 'Run `scripts/e2e.sh`.\n' > CLAUDE.md; : > a; git add a scripts
+check "CLAUDE.md untracked, path tracked"  0 yes "docs ok" git commit -qm x
+
+new; printf 'Run `scripts/e2e.sh`.\n' > CLAUDE.md; git add CLAUDE.md
+check "path on disk but never git added"   1 no "scripts/e2e.sh not found" git commit -qm x
+
+new; printf 'Run `scripts/e2e.sh`.\n' > CLAUDE.md; git add -A; git commit -qm base >/dev/null 2>&1; git rm -q --cached scripts/e2e.sh
+check "git rm --cached, file kept on disk" 1 no "scripts/e2e.sh not found" git commit -qm x
+
+new; printf 'Code in `scripts/`.\n' > CLAUDE.md; git add -A
+check "folder with a tracked file"         0 yes "docs ok" git commit -qm x
+
+new; printf 'Code in `scripts/`.\n' > CLAUDE.md; git add CLAUDE.md
+check "folder with only untracked files"   1 no "scripts/ not found" git commit -qm x
+
+new; mkdir -p 'app/[slug]'; : > 'app/[slug]/page.tsx'; printf 'Route `app/[slug]/page.tsx`.\n' > CLAUDE.md; git add -A
+check "bracket path, no glob expansion"    0 yes "docs ok" git commit -qm x
 
 new; printf 'Run `scripts/missing.sh`.\n' > CLAUDE.md; mkdir sub; : > sub/f; git add -A; cd sub || exit 2
 check "commit from a subfolder, stale"     1 no "$MISSING" git commit -qm x
