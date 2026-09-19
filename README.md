@@ -132,7 +132,7 @@ It reads CLAUDE.md and AGENTS.md, whichever of the two exist in the folder it ru
 
 - **Paths.** Every word with a slash that you wrote in backticks, like `src/OldPanel.tsx`, must exist. In a git repo it must be in the index, so it is part of what you commit. Outside git it must exist on disk.
 - **Deleted names.** If you keep a `deleted-names.txt` with one name per line, none of those names may appear in the two files as a whole word.
-- **Unstaged edits.** In a git repo it first makes sure your latest edits to CLAUDE.md, AGENTS.md and `deleted-names.txt` are staged, so it checks the same version of these files that you commit.
+- **Unstaged edits.** In a git repo it first makes sure your latest edits to CLAUDE.md, AGENTS.md and `deleted-names.txt` are staged, so it checks the same version of these files that you commit. The files themselves are always read from disk, so an untracked CLAUDE.md or `deleted-names.txt` is checked too, even though it is not in the commit.
 
 | Exit | Prints | Commit |
 |:---:|---|---|
@@ -152,14 +152,14 @@ It reads CLAUDE.md and AGENTS.md, whichever of the two exist in the folder it ru
 
 ## Limitations
 
-- It is a text match, not a Markdown parser. It only checks backticked words that contain a slash.
+- It is a text match, not a Markdown parser. It only checks words with a slash inside single backticks on a line. Paths inside fenced code blocks (three backticks) are not checked, and neither are paths in plain prose.
 - Any backticked word with a slash counts as a path. `origin/main`, branch names like `feature/foo`, API routes like `/api/users`, scoped packages like `@tanstack/react-query` and `owner/repo` names all show up as missing. Drop the backticks around them, or skip the check once with `git commit --no-verify`.
 - Not checked: Markdown links like `[setup](docs/setup.md)`, `@path` imports, file names without a slash like `Makefile`, and instruction files other than the root CLAUDE.md and AGENTS.md, such as `.claude/CLAUDE.md`, `CLAUDE.local.md`, nested CLAUDE.md or AGENTS.md files, or `.cursor/rules`.
 - Paths with spaces are not supported.
 - It runs on the folder it starts in. Run from a subfolder by hand and it reports that there is nothing to check.
-- A stray single backtick shifts the pairing, so a path after it can be missed.
+- A stray single backtick shifts the pairing, so a path after it can be missed. Punctuation glued to a path inside the backticks, like `` `src/a.ts,` ``, becomes part of the path and shows up as missing.
 - On macOS folders ignore letter case, so `src/oldpanel.tsx` passes when the file is `OldPanel.tsx`.
-- Tested on macOS and Ubuntu with `sh`, `dash` and `bash`, on every push. It uses `grep -o`, `-h` and `-w`, which are not in POSIX but are in GNU and BSD grep. Windows is not supported. Git Bash and WSL have not been tested.
+- Tested on macOS and Ubuntu on every push, under `dash`, `bash` and each system's own `/bin/sh`. It uses `grep -o`, `-h` and `-w`, which are not in POSIX but are in GNU and BSD grep. Windows is not supported. Git Bash and WSL have not been tested.
 
 ## Tests
 
@@ -168,7 +168,7 @@ python3 tests/run-cases.py check-docs.sh
 sh tests/git-cases.sh "$PWD/check-docs.sh"
 ```
 
-Both exit non-zero if any case fails. CI runs them on macOS and Ubuntu under `sh`, `dash` and `bash` on every push.
+Both exit non-zero if any case fails. CI runs them on macOS and Ubuntu on every push, under `dash`, `bash` and each system's own `/bin/sh`.
 
 - `run-cases.py` builds 62 cases in temp folders, including unreadable files, missing tools, CRLF line endings and non-ASCII paths, and checks exit codes and output. Set `SH=/bin/dash` or `SH=/bin/bash` to use another shell. Run it as a normal user, not root.
 - `git-cases.sh` runs 17 scenarios in real git repos with the script installed as a pre-commit hook, including `git commit -a` and a commit from a subfolder. For each one it checks the script's exit code, its output and whether the commit was made. Pass a shell as the second argument to use another one.
